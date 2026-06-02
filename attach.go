@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path"
 	"strings"
+	"time"
+
+	"github.com/taigrr/systemctl"
 )
 
 func validatePath(target string) (string, error) {
@@ -49,13 +53,9 @@ func attach(base string) error {
 		return err
 	}
 
-	servicePath := path.Join(
-		home,
-		".config",
-		"systemd",
-		"user",
-		fmt.Sprintf("unjunk.%s.service", base),
-	)
+	unit := fmt.Sprintf("unjunk.%s.service", base)
+	servicePath := path.Join(home, ".config", "systemd", "user", unit)
+
 	_, err = os.Stat(servicePath)
 	if err == nil {
 		return err
@@ -85,7 +85,21 @@ RequiredBy=network.target
 			`, bin, base)
 
 		f.WriteString(s)
-		fmt.Println("systemd service file created")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		opts := systemctl.Options{UserMode: true}
+
+		systemctl.Disable(ctx, unit, opts)
+		if err := systemctl.Enable(ctx, unit, opts); err != nil {
+			return err
+		}
+		if err := systemctl.Start(ctx, unit, opts); err != nil {
+			return err
+		}
+		fmt.Println("service started and enabled")
 	}
+
 	return nil
 }

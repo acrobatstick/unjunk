@@ -31,7 +31,7 @@ func (c *Config) AddDirectory(p string) (string, error) {
 	_, exist := c.Directories[dirName]
 	if !exist {
 		directory := Directory{
-			Path: p,
+			Path: dir,
 		}
 		c.Directories[dirName] = &directory
 	}

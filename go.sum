@@ -2,5 +2,7 @@ github.com/BurntSushi/toml v1.6.0 h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk
 github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
 github.com/pablodz/inotifywaitgo v0.0.9 h1:njquRbBU7fuwIe5rEvtaniVBjwWzcpdUVptSgzFqZsw=
 github.com/pablodz/inotifywaitgo v0.0.9/go.mod h1:hAfx2oN+WKg8miwUKPs52trySpPignlRBRxWcXVHku0=
+github.com/taigrr/systemctl v1.1.0 h1:MtvDiIZBW4+XeN0INi3YXatFHR0llsOZJwGZer80Dv4=
+github.com/taigrr/systemctl v1.1.0/go.mod h1:WpBwbTwwMCJSETxTVeYGBXIGSdiYkBBJQHpagYav0zM=
 github.com/urfave/cli/v3 v3.9.0 h1:AV9lIiPv3ukYnxunaCUsHnEozptYmDN2F0+yWqLMn/c=
 github.com/urfave/cli/v3 v3.9.0/go.mod h1:ysVLtOEmg2tOy6PknnYVhDoouyC/6N42TMeoMzskhso=

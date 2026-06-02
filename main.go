@@ -51,11 +51,14 @@ func main() {
 					},
 				},
 				Action: func(ctx context.Context, c *cli.Command) error {
-					dirName := c.StringArg("directory")
+					dirName := c.StringArg("directory_name")
 					if len(dirName) == 0 {
-						return errors.New("path is required as first argument")
+						return errors.New("directory name is required as first argument")
 					}
 					dir := cfg.DirectoryFullPath(dirName)
+					if len(dir) == 0 {
+						return fmt.Errorf("directory %q is not yet attached", dir)
+					}
 					return watch(dir)
 				},
 			},
