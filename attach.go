@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -34,8 +35,19 @@ func validatePath(target string) (string, error) {
 			p = path.Join(home, p[2:])
 		}
 
-		if _, err := os.Stat(p); errors.Is(err, fs.ErrNotExist) {
-			return "", fmt.Errorf("%q is not a valid path directory", p)
+		var err error
+		p, err = filepath.Abs(p)
+		if err != nil {
+			return "", err
+		}
+
+		fi, err := os.Stat(p)
+		if err != nil {
+			return "", err
+		}
+
+		if !fi.IsDir() {
+			return "", fmt.Errorf("%q is not a directory", p)
 		}
 	}
 
