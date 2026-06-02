@@ -26,21 +26,32 @@ func (c *Config) AddDirectory(p string) (string, error) {
 		return "", err
 	}
 
-	dirName := path.Base(dir)
-	// FIXME: handle duplicate name conflict
-	_, exist := c.Directories[dirName]
+	alias := path.Base(dir)
+	// FIXME: handle duplicate alias conflict since we explicitly turning
+	//        the base folder name as the alias
+	_, exist := c.Directories[alias]
 	if !exist {
 		directory := Directory{
 			Path: dir,
 		}
-		c.Directories[dirName] = &directory
+		c.Directories[alias] = &directory
 	}
 
 	if err := c.overwrite(); err != nil {
 		return "", err
 	}
 
-	return dirName, nil
+	return alias, nil
+}
+
+func (c *Config) RemoveDirectory(p string) error {
+	dir, err := validatePath(p)
+	if err != nil {
+		return err
+	}
+	alias := path.Base(dir)
+	delete(c.Directories, alias)
+	return c.overwrite()
 }
 
 func (c *Config) DirectoryFullPath(dirName string) string {
@@ -83,11 +94,8 @@ func loadConfig() error {
 		}
 		f.Close()
 
-		// FIXME: do something better than assinging default values like this
 		cfg.ConfigDir = p
-		if _, err := cfg.AddDirectory("~/Downloads"); err != nil {
-			return err
-		}
+
 		if err := cfg.overwrite(); err != nil {
 			return err
 		}
