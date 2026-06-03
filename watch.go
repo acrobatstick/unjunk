@@ -14,84 +14,102 @@ import (
 )
 
 func watch(dir string) error {
-	_, err := exec.LookPath("inotifywait")
-	if err != nil {
+	if _, err := exec.LookPath("inotifywait"); err != nil {
 		return fmt.Errorf("inotify-tools is not installed")
 	}
 
-	events := make(chan inotifywaitgo.FileEvent)
-	errors := make(chan error)
+	eventCh := make(chan inotifywaitgo.FileEvent)
+	errCh := make(chan error)
 
 	go inotifywaitgo.WatchPath(&inotifywaitgo.Settings{
 		Dir:        dir,
-		FileEvents: events,
-		ErrorChan:  errors,
+		FileEvents: eventCh,
+		ErrorChan:  errCh,
 		Options: &inotifywaitgo.Options{
 			Recursive: false,
-			Events: []inotifywaitgo.EVENT{
-				inotifywaitgo.CLOSE_WRITE,
-			},
-			Monitor: true,
+			Events:    []inotifywaitgo.EVENT{inotifywaitgo.CLOSE_WRITE},
+			Monitor:   true,
 		},
 		Verbose: false,
 	})
 
 	// FIXME: replace "Test" with real organized directories
-	err = os.MkdirAll(path.Join(dir, "Test"), 0700)
-	if err != nil {
-		return fmt.Errorf("unable to create target directory: %v\n", err)
+	targetDir := path.Join(dir, "Test")
+	if err := os.MkdirAll(targetDir, 0700); err != nil {
+		return fmt.Errorf("unable to create target directory: %w", err)
 	}
 
-readLoop:
 	for {
 		select {
-		case event := <-events:
-			for _, e := range event.Events {
-				src := event.Filename
-				switch e {
-				case inotifywaitgo.CLOSE_WRITE:
-					if !isSafeToRead(src) {
-						break
-					}
-					baseName := path.Base(src)
-					dst := path.Join(dir, "Test", baseName)
-					if err := move(src, dst); err != nil {
-						return err
-					}
-				}
+		case event := <-eventCh:
+			if err := handleEvent(event, targetDir); err != nil {
+				return err
 			}
-		case err := <-errors:
-			fmt.Printf("Error: %s\n", err)
-			break readLoop
+		case err := <-errCh:
+			return fmt.Errorf("watcher error: %w", err)
 		}
 	}
+}
 
+func handleEvent(event inotifywaitgo.FileEvent, targetDir string) error {
+	for _, e := range event.Events {
+		if e != inotifywaitgo.CLOSE_WRITE {
+			continue
+		}
+
+		src := event.Filename
+		if !isSafeToRead(src) {
+			continue
+		}
+
+		dst := path.Join(targetDir, path.Base(src))
+		if err := move(src, dst); err != nil {
+			return fmt.Errorf("failed to move %q: %w", src, err)
+		}
+	}
 	return nil
 }
 
 func isSafeToRead(src string) bool {
-	var prevsize int64 = -1
-	for i := 0; i < 10; i++ {
-		f, err := os.Stat(src)
+	var prevSize int64 = -1
+	for range 10 {
+		info, err := os.Stat(src)
 		if err != nil {
 			return false
 		}
-		size := f.Size()
-		// determine the current file is the final form of a complete file
-		// by comparing the previous iteration size check with new
-		if size == prevsize {
+		if info.Size() == prevSize {
 			return true
 		}
-		prevsize = size
+		prevSize = info.Size()
 		time.Sleep(500 * time.Millisecond)
 	}
 	return false
 }
 
 func move(src, dst string) error {
+	dst = resolveDestPath(dst)
+
+	// try fast rename first (same filesystem)
+	if err := os.Rename(src, dst); err == nil {
+		return nil
+	}
+
+	// fallback: copy then delete
 	data, err := os.ReadFile(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("read failed: %w", err)
+	}
+	if err := os.WriteFile(dst, data, 0644); err != nil {
+		return fmt.Errorf("write failed: %w", err)
+	}
+	return os.Remove(src)
+}
+
+// resolveDestPath returns a non-conflicting destination path,
+// appending (1), (2), etc. if the file already exists.
+func resolveDestPath(dst string) string {
+	if _, err := os.Stat(dst); errors.Is(err, fs.ErrNotExist) {
+		return dst
 	}
 
 	dir := path.Dir(dst)
@@ -99,21 +117,10 @@ func move(src, dst string) error {
 	ext := path.Ext(base)
 	name := strings.TrimSuffix(base, ext)
 
-	final := path.Join(dir, base)
-
-	i := 1
-	for {
-		_, err := os.Stat(final)
-		if errors.Is(err, fs.ErrNotExist) {
-			break
+	for i := 1; ; i++ {
+		candidate := path.Join(dir, fmt.Sprintf("%s(%d)%s", name, i, ext))
+		if _, err := os.Stat(candidate); errors.Is(err, fs.ErrNotExist) {
+			return candidate
 		}
-		if err != nil {
-			return err
-		}
-
-		final = path.Join(dir, fmt.Sprintf("%s(%d)%s", name, i, ext))
-		i++
 	}
-
-	return os.WriteFile(final, data, 0644)
 }
