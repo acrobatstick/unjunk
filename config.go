@@ -20,22 +20,21 @@ type (
 	}
 )
 
-func (c *Config) AddDirectory(p string) (string, error) {
+func (c *Config) AddDirectory(p, alias string) (string, error) {
 	dir, err := validatePath(p)
 	if err != nil {
 		return "", err
 	}
 
-	alias := path.Base(dir)
-	// FIXME: handle duplicate alias conflict since we explicitly turning
-	//        the base folder name as the alias
-	_, exist := c.Directories[alias]
-	if !exist {
-		directory := Directory{
-			Path: dir,
-		}
-		c.Directories[alias] = &directory
+	_, exists := c.Directories[alias]
+	if exists {
+		return "", fmt.Errorf("alias %q already taken", alias)
 	}
+
+	directory := Directory{
+		Path: dir,
+	}
+	c.Directories[alias] = &directory
 
 	if err := c.overwrite(); err != nil {
 		return "", err
@@ -44,12 +43,7 @@ func (c *Config) AddDirectory(p string) (string, error) {
 	return alias, nil
 }
 
-func (c *Config) RemoveDirectory(p string) error {
-	dir, err := validatePath(p)
-	if err != nil {
-		return err
-	}
-	alias := path.Base(dir)
+func (c *Config) RemoveDirectory(alias string) error {
 	delete(c.Directories, alias)
 	return c.overwrite()
 }

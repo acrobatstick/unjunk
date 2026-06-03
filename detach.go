@@ -10,13 +10,13 @@ import (
 	"github.com/taigrr/systemctl"
 )
 
-func detach(dir string) error {
+func detach(alias string) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
 	}
 
-	unit := fmt.Sprintf("unjunk.%s.service", path.Base(dir))
+	unit := fmt.Sprintf("unjunk.%s.service", alias)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

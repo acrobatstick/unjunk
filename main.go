@@ -22,10 +22,19 @@ func main() {
 		Commands: []*cli.Command{
 			{
 				Name:  "attach",
-				Usage: "attach new directory to watch",
+				Usage: "attaches new directory to watch",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "alias",
+						Usage:   "a shorthand or an alias for the watched directory",
+						Aliases: []string{"a"},
+					},
+				},
 				Arguments: []cli.Argument{
 					&cli.StringArg{
-						Name: "path",
+						Name:      "path",
+						Value:     "",
+						UsageText: "<path>",
 					},
 				},
 				Action: func(ctx context.Context, c *cli.Command) error {
@@ -34,7 +43,12 @@ func main() {
 						return errors.New("path is required as first argument")
 					}
 
-					dir, err := cfg.AddDirectory(p)
+					alias := c.String("alias")
+					if len(alias) == 0 {
+						return errors.New("alias flag is required")
+					}
+
+					dir, err := cfg.AddDirectory(p, alias)
 					if err != nil {
 						return err
 					}
@@ -47,18 +61,19 @@ func main() {
 				Usage: "detach existing watcher from watching the directory",
 				Arguments: []cli.Argument{
 					&cli.StringArg{
-						Name: "alias",
+						Name:      "alias",
+						UsageText: "<alias>",
 					},
 				},
 				Action: func(ctx context.Context, c *cli.Command) error {
-					dir, err := getDirectoryAlias(c)
-					if err != nil {
+					alias := c.StringArg("alias")
+					if len(alias) == 0 {
+						return errors.New("alias is required as the first argument")
+					}
+					if err := detach(alias); err != nil {
 						return err
 					}
-					if err := detach(dir); err != nil {
-						return err
-					}
-					return cfg.RemoveDirectory(dir)
+					return cfg.RemoveDirectory(alias)
 				},
 			},
 			{
@@ -66,11 +81,12 @@ func main() {
 				Usage: "start the watch daemon",
 				Arguments: []cli.Argument{
 					&cli.StringArg{
-						Name: "alias",
+						Name:      "alias",
+						UsageText: "<alias>",
 					},
 				},
 				Action: func(ctx context.Context, c *cli.Command) error {
-					dir, err := getDirectoryAlias(c)
+					dir, err := getFullPath(c, "alias")
 					if err != nil {
 						return err
 					}
@@ -86,8 +102,8 @@ func main() {
 	}
 }
 
-func getDirectoryAlias(c *cli.Command) (string, error) {
-	dirName := c.StringArg("alias")
+func getFullPath(c *cli.Command, argName string) (string, error) {
+	dirName := c.StringArg(argName)
 	if dirName == "" {
 		return "", errors.New("directory alias is required")
 	}
