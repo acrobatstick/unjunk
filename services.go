@@ -55,7 +55,7 @@ func validatePath(target string) (string, error) {
 }
 
 // Create systemd service for the attached directory
-func attach(base string) error {
+func attach(alias string) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -65,7 +65,7 @@ func attach(base string) error {
 		return err
 	}
 
-	unit := fmt.Sprintf("unjunk.%s.service", base)
+	unit := fmt.Sprintf("unjunk.%s.service", alias)
 	servicePath := path.Join(home, ".config", "systemd", "user", unit)
 
 	_, err = os.Stat(servicePath)
@@ -94,7 +94,7 @@ StandardError=journal
 [Install]
 WantedBy=default.target
 RequiredBy=network.target
-			`, bin, base)
+			`, bin, alias)
 
 		f.WriteString(s)
 
@@ -110,7 +110,7 @@ RequiredBy=network.target
 		if err := systemctl.Start(ctx, unit, opts); err != nil {
 			return err
 		}
-		fmt.Println("service started and enabled")
+		logger.Infof("watcher for %q started and enabled", alias)
 	}
 
 	return nil
@@ -135,6 +135,7 @@ func detach(alias string) error {
 		return err
 	}
 	servicePath := filepath.Join(configDir, "systemd", "user", unit)
+	logger.Infof("%q is now detached", alias)
 	return os.Remove(servicePath)
 }
 
@@ -148,6 +149,8 @@ func start(alias string) error {
 	if err := systemctl.Start(ctx, unit, opts); err != nil {
 		return fmt.Errorf("failed to start %q: %w", unit, err)
 	}
+
+	logger.Infof("watcher for %q started", alias)
 	return nil
 }
 
@@ -161,5 +164,6 @@ func stop(alias string) error {
 	if err := systemctl.Stop(ctx, unit, opts); err != nil {
 		return fmt.Errorf("failed to stop %q: %w", unit, err)
 	}
+	logger.Infof("watcher for %q stopped", alias)
 	return nil
 }

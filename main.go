@@ -8,8 +8,18 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/charmbracelet/log"
 	"github.com/urfave/cli/v3"
 )
+
+func newLogger(timestamp bool) *log.Logger {
+	return log.NewWithOptions(os.Stderr, log.Options{
+		ReportTimestamp: timestamp,
+		Level:           log.InfoLevel,
+	})
+}
+
+var logger = newLogger(false)
 
 func main() {
 	if err := loadConfig(); err != nil {
@@ -86,7 +96,7 @@ func main() {
 	}
 
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		logger.Error(err.Error())
 		os.Exit(2)
 	}
 }
