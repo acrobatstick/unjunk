@@ -26,9 +26,9 @@ func (c *Config) AddDirectory(p, alias string) (string, error) {
 		return "", err
 	}
 
-	_, exists := c.Directories[alias]
+	exists := c.DirectoryAliasExists(alias)
 	if exists {
-		return "", fmt.Errorf("alias %q already taken", alias)
+		return "", fmt.Errorf("directory alias %q already taken", alias)
 	}
 
 	directory := Directory{
@@ -46,6 +46,11 @@ func (c *Config) AddDirectory(p, alias string) (string, error) {
 func (c *Config) RemoveDirectory(alias string) error {
 	delete(c.Directories, alias)
 	return c.overwrite()
+}
+
+func (c *Config) DirectoryAliasExists(alias string) bool {
+	_, exists := c.Directories[alias]
+	return exists
 }
 
 func (c *Config) DirectoryFullPath(dirName string) string {

@@ -115,3 +115,51 @@ RequiredBy=network.target
 
 	return nil
 }
+
+func detach(alias string) error {
+	unit := fmt.Sprintf("unjunk.%s.service", alias)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	opts := systemctl.Options{UserMode: true}
+
+	if err := systemctl.Stop(ctx, unit, opts); err != nil {
+		return fmt.Errorf("failed to stop %q: %w", unit, err)
+	}
+	if err := systemctl.Disable(ctx, unit, opts); err != nil {
+		return fmt.Errorf("failed to disable %q: %w", unit, err)
+	}
+
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return err
+	}
+	servicePath := filepath.Join(configDir, "systemd", "user", unit)
+	return os.Remove(servicePath)
+}
+
+func start(alias string) error {
+	unit := fmt.Sprintf("unjunk.%s.service", alias)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	opts := systemctl.Options{UserMode: true}
+
+	if err := systemctl.Start(ctx, unit, opts); err != nil {
+		return fmt.Errorf("failed to start %q: %w", unit, err)
+	}
+	return nil
+}
+
+func stop(alias string) error {
+	unit := fmt.Sprintf("unjunk.%s.service", alias)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	opts := systemctl.Options{UserMode: true}
+
+	if err := systemctl.Stop(ctx, unit, opts); err != nil {
+		return fmt.Errorf("failed to stop %q: %w", unit, err)
+	}
+	return nil
+}

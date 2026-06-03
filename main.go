@@ -26,35 +26,17 @@ func main() {
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:    "alias",
-						Usage:   "a shorthand or an alias for the watched directory",
 						Aliases: []string{"a"},
+						Usage:   "a shorthand or an alias for the watched directory",
 					},
 				},
 				Arguments: []cli.Argument{
 					&cli.StringArg{
 						Name:      "path",
-						Value:     "",
 						UsageText: "<path>",
 					},
 				},
-				Action: func(ctx context.Context, c *cli.Command) error {
-					p := c.StringArg("path")
-					if len(p) == 0 {
-						return errors.New("path is required as first argument")
-					}
-
-					alias := c.String("alias")
-					if len(alias) == 0 {
-						return errors.New("alias flag is required")
-					}
-
-					dir, err := cfg.AddDirectory(p, alias)
-					if err != nil {
-						return err
-					}
-
-					return attach(dir)
-				},
+				Action: cmdAttach,
 			},
 			{
 				Name:  "detach",
@@ -65,16 +47,29 @@ func main() {
 						UsageText: "<alias>",
 					},
 				},
-				Action: func(ctx context.Context, c *cli.Command) error {
-					alias := c.StringArg("alias")
-					if len(alias) == 0 {
-						return errors.New("alias is required as the first argument")
-					}
-					if err := detach(alias); err != nil {
-						return err
-					}
-					return cfg.RemoveDirectory(alias)
+				Action: cmdDetach,
+			},
+			{
+				Name:  "start",
+				Usage: "start directory watcher",
+				Arguments: []cli.Argument{
+					&cli.StringArg{
+						Name:      "alias",
+						UsageText: "<alias>",
+					},
 				},
+				Action: cmdStart,
+			},
+			{
+				Name:  "stop",
+				Usage: "stop directory watcher",
+				Arguments: []cli.Argument{
+					&cli.StringArg{
+						Name:      "alias",
+						UsageText: "<alias>",
+					},
+				},
+				Action: cmdStop,
 			},
 			{
 				Name:  "watch",
@@ -85,33 +80,84 @@ func main() {
 						UsageText: "<alias>",
 					},
 				},
-				Action: func(ctx context.Context, c *cli.Command) error {
-					dir, err := getFullPath(c, "alias")
-					if err != nil {
-						return err
-					}
-					return watch(dir)
-				},
+				Action: cmdWatch,
 			},
 		},
 	}
 
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
 }
 
+func cmdAttach(_ context.Context, c *cli.Command) error {
+	p := c.StringArg("path")
+	if p == "" {
+		return errors.New("path is required as first argument")
+	}
+	alias := c.String("alias")
+	if alias == "" {
+		return errors.New("alias flag is required")
+	}
+	dir, err := cfg.AddDirectory(p, alias)
+	if err != nil {
+		return err
+	}
+	return attach(dir)
+}
+
+func cmdDetach(_ context.Context, c *cli.Command) error {
+	alias := c.StringArg("alias")
+	if alias == "" {
+		return errors.New("alias is required as the first argument")
+	}
+	if err := detach(alias); err != nil {
+		return err
+	}
+	return cfg.RemoveDirectory(alias)
+}
+
+func cmdWatch(_ context.Context, c *cli.Command) error {
+	dir, err := getFullPath(c, "alias")
+	if err != nil {
+		return err
+	}
+	return watch(dir)
+}
+
+func cmdStart(_ context.Context, c *cli.Command) error {
+	alias := c.StringArg("alias")
+	if alias == "" {
+		return errors.New("directory alias is required")
+	}
+	if exists := cfg.DirectoryAliasExists(alias); !exists {
+		return errors.New("directory alias %q does not exist")
+	}
+
+	return start(alias)
+}
+
+func cmdStop(_ context.Context, c *cli.Command) error {
+	alias := c.StringArg("alias")
+	if alias == "" {
+		return errors.New("directory alias is required")
+	}
+	if exists := cfg.DirectoryAliasExists(alias); !exists {
+		return errors.New("directory alias %q does not exist")
+	}
+
+	return stop(alias)
+}
+
 func getFullPath(c *cli.Command, argName string) (string, error) {
-	dirName := c.StringArg(argName)
-	if dirName == "" {
+	alias := c.StringArg(argName)
+	if alias == "" {
 		return "", errors.New("directory alias is required")
 	}
-
-	dir := cfg.DirectoryFullPath(dirName)
+	dir := cfg.DirectoryFullPath(alias)
 	if dir == "" {
-		return "", fmt.Errorf("directory alias %q is not attached", dirName)
+		return "", fmt.Errorf("directory alias %q is not attached", alias)
 	}
-
 	return dir, nil
 }
