@@ -33,16 +33,10 @@ func watch(dir string) error {
 		Verbose: false,
 	})
 
-	// FIXME: replace "Test" with real organized directories
-	targetDir := path.Join(dir, "Test")
-	if err := os.MkdirAll(targetDir, 0700); err != nil {
-		return fmt.Errorf("unable to create target directory: %w", err)
-	}
-
 	for {
 		select {
 		case event := <-eventCh:
-			if err := handleEvent(event, targetDir); err != nil {
+			if err := handleEvent(event, dir); err != nil {
 				return err
 			}
 		case err := <-errCh:
@@ -51,7 +45,7 @@ func watch(dir string) error {
 	}
 }
 
-func handleEvent(event inotifywaitgo.FileEvent, targetDir string) error {
+func handleEvent(event inotifywaitgo.FileEvent, dir string) error {
 	for _, e := range event.Events {
 		if e != inotifywaitgo.CLOSE_WRITE {
 			continue
@@ -62,7 +56,11 @@ func handleEvent(event inotifywaitgo.FileEvent, targetDir string) error {
 			continue
 		}
 
-		dst := path.Join(targetDir, path.Base(src))
+		dst, err := prepDst(dir, path.Base(src))
+		if err != nil {
+			return err
+		}
+
 		if err := move(src, dst); err != nil {
 			return fmt.Errorf("failed to move %q: %w", src, err)
 		}
@@ -70,6 +68,60 @@ func handleEvent(event inotifywaitgo.FileEvent, targetDir string) error {
 	return nil
 }
 
+// create the sub-directory for the respected filename and returns the subDir + filename path
+func prepDst(dir, fileName string) (string, error) {
+	subDir := directoryNameByExt(fileName)
+	targetDir := path.Join(dir, subDir)
+	if err := os.MkdirAll(targetDir, 0700); err != nil {
+		return "", fmt.Errorf("unable to create target directory: %w", err)
+	}
+	return path.Join(targetDir, fileName), nil
+}
+
+// get directory name by file extension
+func directoryNameByExt(fileName string) string {
+	lower := strings.ToLower(fileName)
+	ext := path.Ext(lower)
+
+	// handle double extensions like .tar.gz, .tar.xz, .tar.bz2
+	if strings.HasSuffix(lower, ".tar.gz") || strings.HasSuffix(lower, ".tar.xz") || strings.HasSuffix(lower, ".tar.bz2") {
+		return "Zips"
+	}
+
+	switch ext {
+	case ".pdf":
+		return "PDFs"
+	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".ico", ".bmp", ".tiff", ".tif", ".heic":
+		return "Images"
+	case ".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv", ".wmv":
+		return "Videos"
+	case ".mp3", ".flac", ".wav", ".ogg", ".m4a", ".aac", ".opus":
+		return "Audio"
+	case ".md", ".markdown":
+		return "Markdown"
+	case ".doc", ".docx", ".odt":
+		return "WordFiles"
+	case ".xlsx", ".xls", ".csv", ".ods":
+		return "Excel"
+	case ".txt":
+		return "Txt"
+	case ".pptx", ".ppt", ".odp":
+		return "Slides"
+	case ".zip", ".tar", ".rar", ".7z", ".deb", ".gz", ".bz2", ".xz":
+		return "Zips"
+	case ".py", ".js", ".ts", ".sh", ".bash", ".json", ".xml", ".yaml", ".yml",
+		".sql", ".html", ".css", ".c", ".cpp", ".go", ".rs":
+		return "Code"
+	case ".appimage", ".bin", ".run", ".exe":
+		return "Executables"
+	default:
+		return "Others"
+	}
+}
+
+// since inotifywait won't let you know if a file is downloaded. we make a workaround
+// to wait for 500ms * 10, and make sure if the file is fully downloaded by comparing the size
+// between each iteration
 func isSafeToRead(src string) bool {
 	var prevSize int64 = -1
 	for range 10 {
