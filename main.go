@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"text/tabwriter"
 
 	"github.com/charmbracelet/log"
 	"github.com/urfave/cli/v3"
@@ -92,6 +93,11 @@ func main() {
 				},
 				Action: cmdWatch,
 			},
+			{
+				Name:   "list",
+				Usage:  "print the list of attached directories",
+				Action: cmdList,
+			},
 		},
 	}
 
@@ -158,6 +164,28 @@ func cmdStop(_ context.Context, c *cli.Command) error {
 	}
 
 	return stop(alias)
+}
+
+func cmdList(_ context.Context, c *cli.Command) error {
+	out := []string{}
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+
+	for alias, dir := range cfg.Directories {
+		status := "STOPPED"
+		isActive := isWatcherActive(alias)
+		if isActive {
+			status = "ACTIVE"
+		}
+		out = append(out, fmt.Sprintf("%s\t%s\t%s\n", alias, dir.Path, status))
+	}
+
+	fmt.Fprintln(w, "ALIAS\tPATH\tSTATUS")
+	for _, row := range out {
+		fmt.Fprint(w, row)
+	}
+	w.Flush()
+
+	return nil
 }
 
 func getFullPath(c *cli.Command, argName string) (string, error) {

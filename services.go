@@ -167,3 +167,18 @@ func stop(alias string) error {
 	logger.Infof("watcher for %q stopped", alias)
 	return nil
 }
+
+func isWatcherActive(alias string) bool {
+	unit := fmt.Sprintf("unjunk.%s.service", alias)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	opts := systemctl.Options{UserMode: true}
+
+	isActive, err := systemctl.IsRunning(ctx, unit, opts)
+	if err != nil {
+		return false
+	}
+
+	return isActive
+}
