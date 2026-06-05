@@ -140,7 +140,23 @@ func detach(alias string) error {
 }
 
 func start(alias string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
 	unit := fmt.Sprintf("unjunk.%s.service", alias)
+	servicePath := path.Join(home, ".config", "systemd", "user", unit)
+
+	bak := servicePath + ".bak"
+	_, err = os.Stat(bak)
+	if err == nil {
+		// remove the masked service
+		os.Remove(servicePath)
+		if err := os.Rename(bak, servicePath); err != nil {
+			return fmt.Errorf("error while using backup file: %v", err)
+		}
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -155,15 +171,40 @@ func start(alias string) error {
 }
 
 func stop(alias string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
 	unit := fmt.Sprintf("unjunk.%s.service", alias)
+	servicePath := path.Join(home, ".config", "systemd", "user", unit)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
 	opts := systemctl.Options{UserMode: true}
 
 	if err := systemctl.Stop(ctx, unit, opts); err != nil {
 		return fmt.Errorf("failed to stop %q: %w", unit, err)
 	}
+
+	if err := os.Rename(servicePath, servicePath+".bak"); err != nil {
+		return err
+	}
+
+	// reload all unit file to prevent the unit still being cached after backup
+	if err := systemctl.DaemonReload(ctx, opts); err != nil {
+		return fmt.Errorf("failed to mask service: %w", err)
+	}
+
+	// use mask instead of just stop, since stop does not persist the service from
+	// running after rebooting or after a new login session
+	if err := systemctl.Mask(ctx, unit, opts); err != nil {
+		// it will always throw not exist error, because we renamed the
+		// original service file
+		if !errors.Is(err, systemctl.ErrDoesNotExist) {
+			return fmt.Errorf("failed to mask service: %w", err)
+		}
+	}
+
 	logger.Infof("watcher for %q stopped", alias)
 	return nil
 }
